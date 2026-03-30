@@ -16,7 +16,6 @@ ventana = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("El Sapo del Cafe")
 clock = pygame.time.Clock()
 
-# Sapo elegido por defecto
 sapo_path = "imagenes/frog_green_spritesheet.png"
 
 # ------------------------------------------------------------------ #
@@ -101,10 +100,7 @@ while True:
         pantalla_v = PantallaVictoria(ventana, captura, jugador.vidas)
         resultado  = pantalla_v.ejecutar()
 
-        if resultado == "siguiente":
-            mostrar_menu()
-            platforms, zona_meta, ancho_nivel, alto_nivel, SPAWN_X, SPAWN_Y, jugador, camera = iniciar_juego(sapo_path)
-        elif resultado == "menu":
+        if resultado in ("siguiente", "menu"):
             mostrar_menu()
             platforms, zona_meta, ancho_nivel, alto_nivel, SPAWN_X, SPAWN_Y, jugador, camera = iniciar_juego(sapo_path)
 
@@ -140,7 +136,6 @@ while True:
     jugador_rect_cam = camera.aplicar(jugador)
     ventana.blit(jugador.image, jugador_rect_cam)
 
-    # HUD siempre encima de todo
     hud.dibujar(ventana, jugador.vidas)
 
     pygame.display.flip()
