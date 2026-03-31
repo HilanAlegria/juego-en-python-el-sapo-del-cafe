@@ -20,35 +20,39 @@ from nivel3 import cargar_nivel as cargar_nivel3
 pygame.init()
 
 # ------------------------------------------------------------------ #
-#  Resolución dinámica según el monitor                                #
+#  Resolución                                                          #
 # ------------------------------------------------------------------ #
 info_monitor      = pygame.display.Info()
 ANCHO_MONITOR     = info_monitor.current_w
 ALTO_MONITOR      = info_monitor.current_h
 pantalla_completa = False
 
+
 def crear_ventana(completa):
     if completa:
-        return pygame.display.set_mode(
+        v = pygame.display.set_mode(
             (ANCHO_MONITOR, ALTO_MONITOR),
             pygame.FULLSCREEN
         )
     else:
-        # Modo ventana: 85% del monitor manteniendo proporción 16:9
         ancho = int(ANCHO_MONITOR * 0.85)
         alto  = int(ancho * 9 / 16)
-        if alto > ALTO_MONITOR * 0.85:
+        if alto > int(ALTO_MONITOR * 0.85):
             alto  = int(ALTO_MONITOR * 0.85)
             ancho = int(alto * 16 / 9)
-        return pygame.display.set_mode((ancho, alto), pygame.RESIZABLE)
+        v = pygame.display.set_mode((ancho, alto))
+    pygame.display.set_caption("El Sapo del Cafe")
+    return v
 
-ventana = crear_ventana(pantalla_completa)
-pygame.display.set_caption("El Sapo del Cafe")
-clock = pygame.time.Clock()
 
+ventana      = crear_ventana(pantalla_completa)
+clock        = pygame.time.Clock()
 sapo_path    = "imagenes/frog_green_spritesheet.png"
 nivel_actual = 0
 NIVELES      = [cargar_nivel1, cargar_nivel2, cargar_nivel3]
+parallax     = Parallax()
+hud          = HUD(vidas_max=3)
+
 
 # ------------------------------------------------------------------ #
 #  Iniciar juego                                                       #
@@ -61,47 +65,36 @@ def iniciar_juego(spritesheet_path, num_nivel):
     parallax.cargar_capas(datos["capas_fondo"])
     return datos, jugador, camera
 
+
 # ------------------------------------------------------------------ #
-#  Menú principal                                                      #
+#  Menú                                                                #
 # ------------------------------------------------------------------ #
 def mostrar_menu():
     global sapo_path, nivel_actual, ventana, pantalla_completa
-
     while True:
         menu      = Menu(ventana, pantalla_completa)
         resultado = menu.ejecutar()
 
         if resultado == "jugar":
             return
-
         elif resultado == "niveles":
             selector = SelectorNivel(ventana)
             eleccion = selector.ejecutar()
             if eleccion is not None:
                 nivel_actual = eleccion
                 return
-
         elif resultado == "elegir_sapo":
             selector  = SelectorSapo(ventana)
             sapo_path = selector.ejecutar()
-
         elif resultado == "toggle_pantalla":
             pantalla_completa = not pantalla_completa
             ventana = crear_ventana(pantalla_completa)
-            pygame.display.set_caption("El Sapo del Cafe")
-
         else:
             pygame.quit()
             sys.exit()
 
-# ------------------------------------------------------------------ #
-#  Recursos                                                            #
-# ------------------------------------------------------------------ #
-parallax = Parallax()
-hud      = HUD(vidas_max=3)
 
 mostrar_menu()
-
 datos, jugador, camera = iniciar_juego(sapo_path, nivel_actual)
 
 # ------------------------------------------------------------------ #
@@ -121,11 +114,11 @@ while True:
 
     teclas = pygame.key.get_pressed()
 
-    platforms   = datos["plataformas"]
-    suelo       = datos["suelo"]
-    zona_meta   = datos["zona_meta"]
-    ancho_nivel = datos["ancho_nivel"]
-    alto_nivel  = datos["alto_nivel"]
+    platforms        = datos["plataformas"]
+    suelo            = datos["suelo"]
+    zona_meta        = datos["zona_meta"]
+    ancho_nivel      = datos["ancho_nivel"]
+    alto_nivel       = datos["alto_nivel"]
     spawn_x, spawn_y = datos["spawn"]
 
     # --- Lógica ---
@@ -147,21 +140,18 @@ while True:
 
     # --- Victoria ---
     if jugador.rect.colliderect(zona_meta):
-        # Desbloquear siguiente nivel y guardar progreso
         desbloquear_siguiente(nivel_actual, len(NIVELES))
-
         captura    = ventana.copy()
         pantalla_v = PantallaVictoria(ventana, captura, jugador.vidas)
         resultado  = pantalla_v.ejecutar()
 
         if resultado == "siguiente":
             if nivel_actual < len(NIVELES) - 1:
-                vidas_anteriores = jugador.vidas
-                nivel_actual    += 1
+                vidas_ant    = jugador.vidas
+                nivel_actual += 1
                 datos, jugador, camera = iniciar_juego(sapo_path, nivel_actual)
-                jugador.vidas = vidas_anteriores
+                jugador.vidas = vidas_ant
             else:
-                # Último nivel completado
                 mostrar_menu()
                 nivel_actual = 0
                 datos, jugador, camera = iniciar_juego(sapo_path, nivel_actual)
@@ -185,22 +175,27 @@ while True:
     camera.update(jugador)
 
     # --- Dibujo ---
-    parallax.dibujar(ventana, camera.offset_x, camera.offset_y)
+    # Fondo negro simple
+    ventana.fill((10, 10, 10))
 
+    # Plataformas y suelo
     dibujar_plataformas(
         ventana, platforms, suelo, camera,
         datos["tile_plat"], datos["tile_suelo"], GRIS
     )
 
+    # Zona de meta
     meta_cam  = camera.aplicar(zona_meta)
     meta_surf = pygame.Surface((meta_cam.width, meta_cam.height), pygame.SRCALPHA)
     meta_surf.fill((50, 220, 80, 100))
     ventana.blit(meta_surf, meta_cam)
     pygame.draw.rect(ventana, (50, 220, 80), meta_cam, 2, border_radius=6)
 
+    # Jugador
     jugador_rect_cam = camera.aplicar(jugador)
     ventana.blit(jugador.image, jugador_rect_cam)
 
+    # HUD
     hud.dibujar(ventana, jugador.vidas)
 
     pygame.display.flip()

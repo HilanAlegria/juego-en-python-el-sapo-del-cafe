@@ -1,6 +1,5 @@
 # hud.py
 import pygame
-from config import ANCHO
 
 COLOR_HUD_FONDO = (0, 0, 0, 120)
 COLOR_CORAZON   = (220, 50,  50)
@@ -29,7 +28,10 @@ class HUD:
         self.tamanio_ico  = 22
 
     def dibujar(self, ventana, vidas):
-        barra = pygame.Surface((ANCHO, 48), pygame.SRCALPHA)
+        # Usar ancho real de la ventana
+        ancho = ventana.get_width()
+
+        barra = pygame.Surface((ancho, 48), pygame.SRCALPHA)
         barra.fill(COLOR_HUD_FONDO)
         ventana.blit(barra, (0, 0))
 

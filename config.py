@@ -11,3 +11,9 @@ FUERZA_SALTO      = 25
 GRAVEDAD          = 1
 
 FUENTE_PATH = "fuentes/PressStart2P-Regular.ttf"
+
+def actualizar_resolucion(ancho, alto):
+    """Actualiza ANCHO y ALTO globalmente cuando cambia la ventana."""
+    global ANCHO, ALTO
+    ANCHO = ancho
+    ALTO  = alto
