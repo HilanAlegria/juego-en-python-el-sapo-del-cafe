@@ -6,14 +6,13 @@ BLANCO = (255, 255, 255)
 AZUL   = (50, 100, 255)
 GRIS   = (120, 120, 120)
 
-VELOCIDAD_JUGADOR = 7
-FUERZA_SALTO      = 25
+# Física base
 GRAVEDAD          = 1
+FUERZA_SALTO      = 25
+
+# Movimiento con inercia
+VEL_MAX_JUGADOR   = 8
+ACELERACION       = 3.5
+FRICCION          = 0.72
 
 FUENTE_PATH = "fuentes/PressStart2P-Regular.ttf"
-
-def actualizar_resolucion(ancho, alto):
-    """Actualiza ANCHO y ALTO globalmente cuando cambia la ventana."""
-    global ANCHO, ALTO
-    ANCHO = ancho
-    ALTO  = alto

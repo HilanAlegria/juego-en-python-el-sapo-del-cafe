@@ -1,6 +1,6 @@
 # player.py
 import pygame
-from config import VELOCIDAD_JUGADOR, GRAVEDAD, FUERZA_SALTO
+from config import GRAVEDAD, FUERZA_SALTO, VEL_MAX_JUGADOR, ACELERACION, FRICCION
 
 VIDAS_MAX    = 3
 UMBRAL_CAIDA = 260
@@ -21,7 +21,8 @@ class Player:
         self.rect = pygame.Rect(x, y, 64, 64)
 
         # Físicas
-        self.vel_y           = 0
+        self.vel_x           = 0.0   # ahora es float para inercia suave
+        self.vel_y           = 0.0
         self.en_suelo        = False
         self.mirando_derecha = True
 
@@ -35,7 +36,7 @@ class Player:
 
         # Caída
         self._cayendo        = False
-        self._y_inicio_caida = 0
+        self._y_inicio_caida = 0.0
         self._caida_fatal    = False
 
         # Animación
@@ -44,7 +45,11 @@ class Player:
         self.VELOCIDAD_ANIM = 100
         self.fila_actual    = FILA_CAMINAR
 
-        # Inicializar image desde el inicio para evitar AttributeError
+        # Squash y stretch
+        self.squash_timer    = 0       # frames que dura el efecto
+        self.squash_scale_x  = 1.0    # escala horizontal
+        self.squash_scale_y  = 1.0    # escala vertical
+
         self.image = self.frames[FILA_CAMINAR][0]
 
     def _cargar_spritesheet(self, path):
@@ -63,6 +68,33 @@ class Player:
         self.image = self.frames[FILA_CAMINAR][0]
 
     # ------------------------------------------------------------------ #
+    #  Squash y stretch                                                    #
+    # ------------------------------------------------------------------ #
+    def _activar_squash(self, tipo):
+        """
+        tipo 'salto'    → se estira verticalmente al saltar
+        tipo 'aterrizaje' → se aplana al caer
+        """
+        if tipo == "salto":
+            self.squash_scale_x = 0.7
+            self.squash_scale_y = 1.4
+        elif tipo == "aterrizaje":
+            self.squash_scale_x = 1.4
+            self.squash_scale_y = 0.7
+        self.squash_timer = 8   # dura 8 frames
+
+    def _actualizar_squash(self):
+        if self.squash_timer > 0:
+            self.squash_timer -= 1
+            # Interpola de vuelta a 1.0 gradualmente
+            t = self.squash_timer / 8
+            self.squash_scale_x = 1.0 + (self.squash_scale_x - 1.0) * t
+            self.squash_scale_y = 1.0 + (self.squash_scale_y - 1.0) * t
+        else:
+            self.squash_scale_x = 1.0
+            self.squash_scale_y = 1.0
+
+    # ------------------------------------------------------------------ #
     #  Vidas                                                               #
     # ------------------------------------------------------------------ #
     def perder_vida(self, spawn_x, spawn_y):
@@ -70,10 +102,11 @@ class Player:
             return
         self.vidas            -= 1
         self.rect.topleft      = (spawn_x, spawn_y)
-        self.vel_y             = 0
+        self.vel_x             = 0.0
+        self.vel_y             = 0.0
         self.en_suelo          = False
         self._cayendo          = False
-        self._y_inicio_caida   = 0
+        self._y_inicio_caida   = 0.0
         self.invencible        = True
         self.frames_invencible = self.DURACION_INV
 
@@ -81,17 +114,37 @@ class Player:
         return self.vidas <= 0
 
     # ------------------------------------------------------------------ #
-    #  Input                                                               #
+    #  Input con inercia                                                   #
     # ------------------------------------------------------------------ #
     def handle_input(self, teclas):
-        dx = 0
+        """
+        Ya no retorna dx directamente.
+        Aplica aceleración y fricción a self.vel_x.
+        Retorna vel_x para que main.py sepa la dirección.
+        """
+        moviendo = False
+
         if teclas[pygame.K_LEFT] or teclas[pygame.K_a]:
-            dx = -VELOCIDAD_JUGADOR
+            self.vel_x      -= ACELERACION
             self.mirando_derecha = False
+            moviendo         = True
         if teclas[pygame.K_RIGHT] or teclas[pygame.K_d]:
-            dx = VELOCIDAD_JUGADOR
+            self.vel_x      += ACELERACION
             self.mirando_derecha = True
-        return dx
+            moviendo         = True
+
+        # Aplicar fricción cuando no hay input
+        if not moviendo:
+            self.vel_x *= FRICCION
+
+        # Clamp a velocidad máxima
+        self.vel_x = max(-VEL_MAX_JUGADOR, min(VEL_MAX_JUGADOR, self.vel_x))
+
+        # Si la velocidad es muy pequeña, parar completamente
+        if abs(self.vel_x) < 0.2:
+            self.vel_x = 0.0
+
+        return self.vel_x
 
     def jump(self, teclas):
         saltar = (
@@ -102,87 +155,88 @@ class Player:
         if saltar and self.en_suelo:
             self.vel_y    = -FUERZA_SALTO
             self.en_suelo = False
+            self._activar_squash("salto")
 
-    # ------------------------------------------------------------------ #
-    #  Física                                                              #
-    # ------------------------------------------------------------------ #
     def apply_gravity(self):
         self.vel_y += GRAVEDAD
         if self.vel_y > 20:
             self.vel_y = 20
 
-    def move(self, dx, platforms, alto_nivel):
+    def move(self, platforms, alto_nivel):
+        """
+        Ahora usa self.vel_x internamente en lugar de recibir dx.
+        """
+        dx = int(self.vel_x)
+
         # --- Horizontal ---
         self.rect.x += dx
         for plat in platforms:
             if self.rect.colliderect(plat):
                 if dx > 0:
                     self.rect.right = plat.left
+                    self.vel_x      = 0.0
                 elif dx < 0:
                     self.rect.left  = plat.right
+                    self.vel_x      = 0.0
 
         # --- Vertical ---
-        self.rect.y += self.vel_y
-        estaba_en_suelo        = self.en_suelo
-        self.en_suelo          = False
-        aterizzo_en_plataforma = False
+        self.rect.y      += int(self.vel_y)
+        estaba_en_suelo   = self.en_suelo
+        self.en_suelo     = False
+        aterrizó          = False
 
         for plat in platforms:
             if self.rect.colliderect(plat):
                 if self.vel_y > 0:
-                    self.rect.bottom       = plat.top
-                    self.vel_y             = 0
-                    self.en_suelo          = True
-                    aterizzo_en_plataforma = True
+                    self.rect.bottom = plat.top
+                    self.vel_y       = 0.0
+                    self.en_suelo    = True
+                    aterrizó         = True
                 elif self.vel_y < 0:
                     self.rect.top = plat.bottom
-                    self.vel_y    = 0
+                    self.vel_y    = 0.0
 
         toco_suelo = False
         if self.rect.bottom >= alto_nivel:
             self.rect.bottom = alto_nivel
-            self.vel_y       = 0
+            self.vel_y       = 0.0
             self.en_suelo    = True
             toco_suelo       = True
+            aterrizó         = True
+
+        # Squash al aterrizar
+        if aterrizó and not estaba_en_suelo:
+            self._activar_squash("aterrizaje")
 
         # --- Lógica caída fatal ---
         if estaba_en_suelo and not self.en_suelo:
             self._cayendo        = True
-            self._y_inicio_caida = self.rect.y
+            self._y_inicio_caida = float(self.rect.y)
 
         if self.en_suelo and self._cayendo:
-            distancia_caida = self.rect.y - self._y_inicio_caida
-            self._cayendo   = False
-            if (toco_suelo or aterizzo_en_plataforma) and distancia_caida > UMBRAL_CAIDA:
-                self._caida_fatal = True
-            else:
-                self._caida_fatal = False
+            distancia = self.rect.y - self._y_inicio_caida
+            self._cayendo = False
+            self._caida_fatal = (distancia > UMBRAL_CAIDA)
         else:
-            self._caida_fatal = False
+            if not self._cayendo:
+                self._caida_fatal = False
 
     # ------------------------------------------------------------------ #
-    #  Update — animación e invencibilidad                                 #
+    #  Update                                                              #
     # ------------------------------------------------------------------ #
-    def update(self, dt, dx):
-        # --- Elegir fila de animación ---
+    def update(self, dt):
+        # --- Elegir fila ---
         nueva_fila = self.fila_actual
-
         if not self.en_suelo:
-            if self.vel_y < 0:
-                nueva_fila = FILA_SALTAR
-            else:
-                nueva_fila = FILA_CAER
+            nueva_fila = FILA_SALTAR if self.vel_y < 0 else FILA_CAER
         else:
             nueva_fila = FILA_CAMINAR
 
-        # Si cambió la fila resetear frame para evitar IndexError
         if nueva_fila != self.fila_actual:
             self.fila_actual  = nueva_fila
             self.frame_actual = 0
             self.timer_anim   = 0
-        else:
-            self.fila_actual = nueva_fila
-
+        
         # --- Avanzar frame ---
         self.timer_anim += dt
         if self.timer_anim >= self.VELOCIDAD_ANIM:
@@ -190,12 +244,24 @@ class Player:
             self.frame_actual = (self.frame_actual + 1) % num_frames
             self.timer_anim   = 0
 
-        # --- Obtener imagen y voltear si va a la izquierda ---
+        # --- Squash/stretch ---
+        self._actualizar_squash()
+
+        # --- Construir imagen final ---
         frame = self.frames[self.fila_actual][self.frame_actual]
+
+        # Aplicar squash/stretch si hay efecto activo
+        if self.squash_scale_x != 1.0 or self.squash_scale_y != 1.0:
+            nuevo_w = int(64 * self.squash_scale_x)
+            nuevo_h = int(64 * self.squash_scale_y)
+            nuevo_w = max(1, nuevo_w)
+            nuevo_h = max(1, nuevo_h)
+            frame   = pygame.transform.scale(frame, (nuevo_w, nuevo_h))
+
         if not self.mirando_derecha:
             frame = pygame.transform.flip(frame, True, False)
 
-        # --- Invencibilidad / parpadeo ---
+        # --- Invencibilidad ---
         if self.invencible:
             self.frames_invencible -= 1
             if (self.frames_invencible // 6) % 2 == 0:

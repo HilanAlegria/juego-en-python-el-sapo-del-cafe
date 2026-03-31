@@ -95,7 +95,13 @@ class PantallaVictoria:
             titulo = self.fuente_titulo.render("NIVEL COMPLETADO", True, COLOR_TITULO)
             self.ventana.blit(titulo, titulo.get_rect(center=(ANCHO // 2, ALTO // 2 - 60)))
 
-            sub = self.fuente_sub.render("El sapo llego a la cima del cafe!", True, COLOR_SUBTITULO)
+            # En PantallaVictoria.__init__ agrega:
+            self.score_final = 0  # se setea desde afuera
+
+            # En ejecutar() reemplaza el subtítulo por:
+            sub = self.fuente_sub.render(
+                f"SCORE FINAL: {self.score_final}", True, COLOR_SUBTITULO
+            )
             self.ventana.blit(sub, sub.get_rect(center=(ANCHO // 2, ALTO // 2 + 10)))
 
             for boton in self.botones:
