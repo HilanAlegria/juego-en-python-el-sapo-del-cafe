@@ -9,3 +9,6 @@ source venv/bin/activate
 
 ## 2. Ejecutar el juego
 python3 main.py
+
+## 3. Diseño
+Todo el tema del diseño, los fondos, assests, musica y algunas animaciones no se agregan porque interferencias o bugs, por el momento de deja el juego "desnudo"
